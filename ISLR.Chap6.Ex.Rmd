@@ -1,0 +1,454 @@
+---
+title: "ISLR.Chap6.Ex"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 概念
+
+### 1.
+
+a.  
+最优子集选择的训练集RSS最小。因为向前和向后逐步选择，采用的是类似贪心(选择当前最好的k，不改变k再加减1)的方法，只能得到局部的最优解。
+
+b.  
+无法确定哪个模型的测试集RSS最小
+
+c.  
+1).正确 2).正确 3).错误 4).错误 5).错误
+
+
+### 2.
+
+a.  
+与最小二乘模型相比，lasso灵活性更差(less flexible)，并且当lasso的预测结果的偏差增大小于其方差减小时，lasso的预测值更准确
+
+b.  
+与最小二乘模型相比，ridge灵活性更差(less flexible)，并且当ridge的预测结果的偏差增大小于其方差减小时，ridge的预测值更准确
+
+c.  
+与最小二乘模型相比，非线性放灵活性更好(more flexible)，并且当非线性模型的预测结果的方差增大小于其偏差减小时，非线性模型的预测值更准确
+
+
+### 3.
+$\sum\limits_{i=1}^{n}{(y_i - \beta_0 - \sum\limits_{j=1}^p{\beta_j x_{ij}})}, \sum\limits_{j=1}^p{|\beta_j|} \le s$ 即lasso  
+当s=0时，模型是只包含截距的0模型，也就是说初始条件为$\lambda$无限大时的lasso，s增大即$\lambda$减小
+
+a.  
+可参考书p153.图6-7  
+随着s从0开始增加，对预测变量系数的限制变小，flexibility增加，训练集的RSS会稳定减小
+
+b.  
+可参考图6-8  
+随着s从0开始增加，(从0模型)开始有一些变量加入，测试集的RSS会减小，减小到最优的lasso的情况，由于s的增大最终使模型变为*全模型*，测试集的RSS增大。所以是一个先减小后增大的"U"形
+
+c.  
+flexibility增加，方差会稳定增加
+
+d.  
+flexibility增加，平方偏差会稳定减小
+
+e.  
+不可约误差保持不变
+
+### 4.  
+$\sum\limits_{i=1}^{n}{(y_i - \beta_0 - \sum\limits_{j=1}^p{\beta_j x_{ij}})} + \lambda\sum\limits_{j=1}^p{\beta_j}^2$ 即ridge  
+当$\lambda=0$时，模型是普通最小二乘模型，随着$\lambda$从0开始增加，可参考p150.图6-5
+
+a.  
+随着$\lambda$从0开始增加，flexibility减小，训练集RSS稳定增大
+
+b.  
+测试集RSS先减小后增大，呈"U"形
+
+c.  
+方差稳定减小
+
+d.  
+平方偏差稳定增大
+
+e.  
+不可约误差保持不变
+
+### 5.
+
+a.  
+$(y_1 - \hat{\beta_1}x_{11} - \hat{\beta_2}x_{12})^2 + (y_2 - \hat{\beta_1}x_{21} - \hat{\beta_2}x_{22})^2 + \lambda(\hat{\beta_1}^2 + \hat{\beta_2}^2)$
+
+### 6.
+
+a.  
+
+$cost = (y_1 - \hat{\beta_1})^2 + {\lambda}\hat{\beta_1}^2$  
+$\hat{\beta_j}^R = \frac{y_i}{1+\lambda}$
+```{r}
+cost <- function(beta, y=10, lambda=6) {
+  return((y-beta)^2 + lambda*beta^2)
+}
+beta_ana_sol <- 10/(1+6)
+betas <- seq(-10, 10, length.out = 1000)
+beta_num_sol <- betas[which.min(cost(betas))]
+plot(betas, cost(betas), cex = 0.5)
+points(beta_ana_sol, cost(beta_ana_sol), col = "red", pch = 17)
+points(beta_num_sol, cost(beta_num_sol), col = "blue", pch = 4, cex = 2)
+abs(beta_num_sol - beta_ana_sol)
+```
+
+b.  
+
+$cost = (y_1 - \hat{\beta_1})^2 + {\lambda}|\hat{\beta_1}|$  
+$\hat{\beta_j}^L = \begin{cases} y_j-\frac{\lambda}{2},&{y_j}>{\frac{\lambda}{2}} \\ y_j+\frac{\lambda}{2},&{y_j}<-{\frac{\lambda}{2}} \\ 0,&|y_j|\le {\frac{\lambda}{2}} \end{cases}$  
+```{r}
+cost_lasso <- function(beta, y=10, lambda=6){
+  return((y-beta)^2 + lambda*abs(beta))
+}
+ana_sol <- function(y, lambda){
+  if (y > lambda/2){
+    beta <- y - lambda/2
+  }else if(y < -lambda/2){
+    beta <- y + lambda/2
+  }else{
+    beta <- 0
+  }
+  return(beta)
+}
+
+beta_ana_sol <- ana_sol(10, 6)
+betas <- seq(-10, 10, length.out = 1000)
+beta_num_sol <- betas[which.min(cost_lasso(betas))]
+
+plot(betas, cost_lasso(betas), cex = 0.5)
+points(beta_ana_sol, cost_lasso(beta_ana_sol), col = "red", pch = 17)
+points(beta_num_sol, cost_lasso(beta_num_sol), col = "blue", pch = 4, cex = 2)
+
+abs(beta_num_sol - beta_ana_sol)
+```
+
+## 应用
+
+### 8.
+
+a.b.
+```{r warning=FALSE}
+library(leaps)
+set.seed(123)
+x <- rnorm(100)
+set.seed(123)
+epsilon <- rnorm(100)
+beta0 <- 4
+beta1 <- 3
+beta2 <- 2
+beta3 <- 1
+y <- beta0 + beta1*x + beta2*x^2 + beta3*x^3
+```
+
+c. 根据$C_p, BIC, adjR^2$来选择regsubsets获得的最优模型  
+据下图的结果来看，最优模型并不相同，但是注意到，当变量数超过3时，各评价指标变化不大，所以可认为3是最佳model size
+```{r}
+df <- data.frame(
+  x,
+  y
+)
+df2 <- data.frame(
+  x1 = x,
+  x2 = x^2,
+  x3 = x^3,
+  x4 = x^4,
+  x5 = x^5,
+  x6 = x^6,
+  x7 = x^7,
+  x8 = x^8,
+  x9 = x^9,
+  x10 = x^10,
+  y
+)
+# 如果使用df作为data，则需要在poly()中加上raw=TRUE参数
+# 如果使用df2作为data,则可直接用y ~ x拟合
+fm <- regsubsets(y ~ poly(x, 10, raw = TRUE), data = df, nvmax = 10)
+fm_sum <- summary(fm)
+min_rss <- which.min(fm_sum$rss)
+max_adjr2 <- which.max(fm_sum$adjr2)
+min_cp <- which.min(fm_sum$cp)
+min_bic <- which.min(fm_sum$bic)
+par(mfrow = c(2, 2))
+plot(fm_sum$rss, xlab = "Number of Variables", ylab = "RSS", type = "l")
+points(min_rss, fm_sum$rss[min_rss], col = "red", cex = 2, pch = 20)
+plot(fm_sum$adjr2, xlab = "Number of Variables", ylab = "adj_R2", type = "l")
+points(max_adjr2, fm_sum$adjr2[max_adjr2], col = "red", cex = 2, pch = 20)
+plot(fm_sum$cp, xlab = "Number of Variables", ylab = "Cp", type = "l")
+points(min_cp, fm_sum$cp[min_cp], col = "red", cex = 2, pch = 20)
+plot(fm_sum$bic, xlab = "Number of Variables", ylab = "BIC", type = "l")
+points(min_bic, fm_sum$bic[min_bic], col = "red", cex = 2, pch = 20)
+```
+
+d. 使用向前和向后来做筛选  
+结果和上题类似，虽然最优结果不是3，但是在3时趋于平稳
+```{r}
+# forward
+fm_fwd <- regsubsets(y ~ poly(x, 10, raw = TRUE), data = df, nvmax = 10, method = "forward")
+fm_fwd_sum <- summary(fm_fwd)
+min_rss <- which.min(fm_fwd_sum$rss)
+max_adjr2 <- which.max(fm_fwd_sum$adjr2)
+min_cp <- which.min(fm_fwd_sum$cp)
+min_bic <- which.min(fm_fwd_sum$bic)
+par(mfrow = c(2, 2))
+plot(fm_fwd_sum$rss, xlab = "Number of Variables", ylab = "RSS", type = "l")
+points(min_rss, fm_fwd_sum$rss[min_rss], col = "red", cex = 2, pch = 20)
+plot(fm_fwd_sum$adjr2, xlab = "Number of Variables", ylab = "adj_R2", type = "l")
+points(max_adjr2, fm_fwd_sum$adjr2[max_adjr2], col = "red", cex = 2, pch = 20)
+plot(fm_fwd_sum$cp, xlab = "Number of Variables", ylab = "Cp", type = "l")
+points(min_cp, fm_fwd_sum$cp[min_cp], col = "red", cex = 2, pch = 20)
+plot(fm_fwd_sum$bic, xlab = "Number of Variables", ylab = "BIC", type = "l")
+points(min_bic, fm_fwd_sum$bic[min_bic], col = "red", cex = 2, pch = 20)
+
+# backward
+fm_bwd <- regsubsets(y ~ poly(x, 10, raw = TRUE), data = df, nvmax = 10, method = "forward")
+fm_bwd_sum <- summary(fm_bwd)
+min_rss <- which.min(fm_bwd_sum$rss)
+max_adjr2 <- which.max(fm_bwd_sum$adjr2)
+min_cp <- which.min(fm_bwd_sum$cp)
+min_bic <- which.min(fm_bwd_sum$bic)
+par(mfrow = c(2, 2))
+plot(fm_bwd_sum$rss, xlab = "Number of Variables", ylab = "RSS", type = "l")
+points(min_rss, fm_bwd_sum$rss[min_rss], col = "red", cex = 2, pch = 20)
+plot(fm_bwd_sum$adjr2, xlab = "Number of Variables", ylab = "adj_R2", type = "l")
+points(max_adjr2, fm_bwd_sum$adjr2[max_adjr2], col = "red", cex = 2, pch = 20)
+plot(fm_bwd_sum$cp, xlab = "Number of Variables", ylab = "Cp", type = "l")
+points(min_cp, fm_bwd_sum$cp[min_cp], col = "red", cex = 2, pch = 20)
+plot(fm_bwd_sum$bic, xlab = "Number of Variables", ylab = "BIC", type = "l")
+points(min_bic, fm_bwd_sum$bic[min_bic], col = "red", cex = 2, pch = 20)
+```
+
+e.  
+结果表明，lasso能够选出最优模型，系数和真实模型基本一致
+```{r warning=FALSE, message=FALSE}
+library(glmnet)
+x_mat <- model.matrix(y ~ poly(x, 10, raw = TRUE), df)[, -1]
+lasso_fit <- glmnet(x_mat, y, alpha = 1)
+set.seed(1)
+cv_out <- cv.glmnet(x_mat, y, alpha = 1)
+par(mfrow = c(1,1))
+plot(cv_out)
+best_lambda <- cv_out$lambda.min
+coef(lasso_fit, s = best_lambda)
+```
+
+f.
+```{r}
+beta7 <- 7
+y_f <- beta0 + beta7*x^7 + epsilon
+df3 <- data.frame(
+  x,
+  y_f
+)
+
+fm_full <- regsubsets(y_f ~ poly(x, 10, raw = TRUE), data = df3, nvmax = 10)
+fm_full_sum <- summary(fm_full)
+fm_full_sum <- summary(fm_full)
+min_rss <- which.min(fm_full_sum$rss)
+max_adjr2 <- which.max(fm_full_sum$adjr2)
+min_cp <- which.min(fm_full_sum$cp)
+min_bic <- which.min(fm_full_sum$bic)
+par(mfrow = c(2, 2))
+plot(fm_full_sum$rss, xlab = "Number of Variables", ylab = "RSS", type = "l")
+points(min_rss, fm_full_sum$rss[min_rss], col = "red", cex = 2, pch = 20)
+plot(fm_full_sum$adjr2, xlab = "Number of Variables", ylab = "adj_R2", type = "l")
+points(max_adjr2, fm_full_sum$adjr2[max_adjr2], col = "red", cex = 2, pch = 20)
+plot(fm_full_sum$cp, xlab = "Number of Variables", ylab = "Cp", type = "l")
+points(min_cp, fm_full_sum$cp[min_cp], col = "red", cex = 2, pch = 20)
+plot(fm_full_sum$bic, xlab = "Number of Variables", ylab = "BIC", type = "l")
+points(min_bic, fm_full_sum$bic[min_bic], col = "red", cex = 2, pch = 20)
+
+
+x_mat2 <- model.matrix(y_f ~ poly(x, 10, raw = TRUE), df3)[, -1]
+lasso_ <- glmnet(x_mat2, y_f, alpha = 1)
+cv_out2 <- cv.glmnet(x_mat2, y_f, alpha = 1)
+par(mfrow = c(1, 1))
+plot(cv_out2)
+best_lambda2 <- cv_out2$lambda.min
+coef(lasso_, s = best_lambda2)
+```
+
+### 9.
+
+a.
+```{r warning=FALSE, message=FALSE}
+library(ISLR)
+library(pls)
+summary(College)
+# no NA data
+
+set.seed(1)
+n <- nrow(College)
+train <- sample(1:n, ceiling(0.7*n))
+train_set <- College[train, ]
+test_set <- College[-train, ]
+```
+
+b.
+```{r}
+lm_fit <- lm(Apps ~ ., data = train_set)
+lm_pred <- predict(lm_fit, test_set)
+lm_mse <- mean((lm_pred - test_set$Apps)^2)
+```
+
+c.
+```{r}
+train_x <- model.matrix(Apps ~ ., data = train_set)[, -1]
+test_x <- model.matrix(Apps ~ ., data = test_set)[, -1]
+ridge_fit <- glmnet(train_x, train_set$Apps, alpha = 0)
+cv_ridge <- cv.glmnet(train_x, train_set$Apps, alpha = 0)
+plot(cv_ridge)
+ridge_best_lam <- cv_ridge$lambda.min
+ridge_pred <- predict(ridge_fit, s = ridge_best_lam, newx = test_x)
+ridge_mse <- mean((ridge_pred - test_set$Apps)^2)
+```
+
+d.
+```{r}
+lasso_fit <- glmnet(train_x, train_set$Apps, alpha = 1)
+cv_lasso <- cv.glmnet(train_x, train_set$Apps, alpha = 1)
+plot(cv_lasso)
+lasso_best_lam <- cv_lasso$lambda.min
+lasso_pred <- predict(ridge_fit, s = lasso_best_lam, newx = test_x)
+lasso_mse <- mean((lasso_pred - test_set$Apps)^2)
+coef(lasso_fit, s = lasso_best_lam)
+```
+
+e.
+```{r}
+pcr_fit <- pcr(Apps ~ ., data = train_set, scale = TRUE, validation = "CV")
+validationplot(pcr_fit, val.type = "MSEP")
+m <- pcr_fit$ncomp
+pcr_pred <- predict(pcr_fit, test_x, ncomp = m)
+pcr_mse <- mean((pcr_pred - test_set$Apps)^2)
+```
+
+f.
+```{r}
+pls_fit <- pcr(Apps ~ ., data = train_set, scale = TRUE, validation = "CV")
+validationplot(pls_fit, val.type = "MSEP")
+m <- pls_fit$ncomp
+pls_pred <- predict(pls_fit, test_x, ncomp = m)
+pls_mse <- mean((pls_pred - test_set$Apps)^2)
+```
+
+g.  
+比较各模型的MSE
+```{r}
+mse <- c(lm_mse, ridge_mse, lasso_mse, pcr_mse, pls_mse)
+names(mse) <- c("lm", "ridge", "lasso", "pcr", "pls")
+barplot(mse)
+```
+
+### 10.
+
+a.  
+生成模拟数据
+```{r warning=FALSE}
+library(leaps)
+p <- 20
+n <- 1000
+set.seed(12)
+epsilon <- rnorm(n)
+mat <- matrix(rnorm(p*n), nrow = 1000)
+mat2 <- cbind(rep(1,n), mat)
+betas <- sample(-5:5, 21, replace = TRUE)
+zero <- sample(1:20, 6)
+betas[zero] <- 0
+betas
+y <- mat2%*%betas + epsilon
+mat3 <- cbind(mat2[, -1], y)
+df <- as.data.frame(mat3)
+colnames(df) <- c(paste("x", 1:20, sep = ""), "y")
+```
+
+b.  
+划分数据集
+```{r}
+set.seed(1)
+train <- sample(1:n, 100)
+train_set <- df[train, ]
+test_set <- df[-train, ]
+```
+
+c.
+```{r}
+fm_full <- regsubsets(y ~ ., data = df, nvmax = 20)
+fm_sum <- summary(fm_full)
+
+min_rss <- which.min(fm_sum$rss)
+max_adjr2 <- which.max(fm_sum$adjr2)
+min_cp <- which.min(fm_sum$cp)
+min_bic <- which.min(fm_sum$bic)
+par(mfrow = c(2, 2))
+plot(fm_sum$rss, xlab = "Number of Variables", ylab = "RSS", type = "l")
+points(min_rss, fm_sum$rss[min_rss], col = "red", cex = 2, pch = 20)
+plot(fm_sum$adjr2, xlab = "Number of Variables", ylab = "adj_R2", type = "l")
+points(max_adjr2, fm_sum$adjr2[max_adjr2], col = "red", cex = 2, pch = 20)
+plot(fm_sum$cp, xlab = "Number of Variables", ylab = "Cp", type = "l")
+points(min_cp, fm_sum$cp[min_cp], col = "red", cex = 2, pch = 20)
+plot(fm_sum$bic, xlab = "Number of Variables", ylab = "BIC", type = "l")
+points(min_bic, fm_sum$bic[min_bic], col = "red", cex = 2, pch = 20)
+
+val_err <- rep(0, p)
+train_mat <- model.matrix(y ~ ., data = train_set)
+for (i in 1:p){
+  coef_i <- coef(fm_full, id = i)
+  selected_feature <- names(coef_i)
+  pred <- train_mat[, selected_feature] %*% coef_i
+  mse <- mean((pred - train_set$y)^2)
+  val_err[i] <- mse
+}
+names(val_err) <- paste("var", 1:p, sep = "")
+par(mfrow = c(1,1))
+barplot(val_err)
+abline(h = min(val_err), col = "red", lty = 3)
+# 最优变量数
+which.min(val_err)
+```
+
+d.
+```{r}
+val_err2 <- rep(0, p)
+test_mat <- model.matrix(y ~ ., data = test_set)
+for (i in 1:p) {
+  coef_i <- coef(fm_full, id = i)
+  selected_feature <- names(coef_i)
+  pred <- test_mat[, selected_feature] %*% coef_i
+  mse <- mean((pred - test_set$y)^2)
+  val_err2[i] <- mse
+}
+names(val_err2) <- paste("var", 1:p, sep = "")
+barplot(val_err2)
+abline(h = min(val_err2), col = "red", lty = 3)
+which.min(val_err2)
+```
+
+e.  
+如上所示，全模型(变量数为20)时，测试MSE最小，但是当变量数>=13时，MSE就基本相同了，这个时候其实可以优选变量数少的模型。  
+可以通过调整随机种子来调整数据生成
+
+f.
+```{r}
+coef(fm_full, id = 20)
+betas
+```
+二者的系数很接近，在真实模型中beta为0的系数在全模型中对应的系数也很接近0
+
+g.
+```{r}
+names(betas) <- c("(Intercept)", paste("x", 1:p, sep = ""))
+vals <- rep(0, p)
+for (r in 1:p) {
+  coef_r <- coef(fm_full, id = r)
+  vals[r] <- sqrt(sum((betas[names(coef_r)] - coef_r)^2))
+}
+plot(1:p, vals, xlab = "Number of Variables")
+points(which.min(vals), min(vals), col = "red")
+```  
+
+和d中的结果并不一致，d中测试集MSE推荐var_num=20, 这里显示var_num=11时系数最为接近。两者比较而言应以d为准

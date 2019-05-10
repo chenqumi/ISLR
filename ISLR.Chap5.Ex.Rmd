@@ -1,0 +1,308 @@
+---
+title: "ISLR.Chap5.Exercise"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r library, warning=FALSE}
+library(boot)
+library(MASS)
+library(ISLR)
+```
+
+## 概念
+
+### 2.
+
+a.
+$1 - \frac{1}{n}$
+
+b.
+$1 - \frac{1}{n}$
+
+c.  
+自助样本中每一个位置的观测是否来自原始样本中第j个观测是彼此独立的，不在的概率为$1 - \frac{1}{n}$，所以第j个观测不在自助法样本中的概率为$(1-\frac{1}{n})^n$
+
+d.e.f.g.  
+随着n增大，第j个观测在自助样本中的概率趋于稳定，为0.632
+```{r}
+p_j <- function(n){
+  1 - (1-1/n)^n
+}
+p_j(5)
+p_j(10)
+p_j(10000)
+x <- 1:100000
+y <- p_j(x)
+plot(x, y)
+```
+
+h.  
+结果也说明某个观测被自助法抽中的概率最终稳定
+```{r}
+store <- rep(NA, 10000)
+for (i in 1:10000) {
+  # sample(1:100, replace = TRUE)进行重复抽样
+  # 判断4号观测是否被抽到，生成布尔值向量
+  # sum计算4号在一次自助法中被抽到的次数
+  # 如果>0则说明被抽到了，记录在store中
+  store[i] <- sum(sample(1:100, replace = TRUE)==4) > 0
+}
+mean(store)
+```
+
+### 3.
+
+a.  
+K-fold CV首先将数据集分为K份，一般选择K=5或K=10，每次留下一份做验证集，其余K-1份做训练集，用验证集评价模型(如回归中的MSE，分类中的错误率)得到$E_i$，迭代进行，最终以$mean(E_i)$作为验证集的评价指标
+
+b.
+K-fold CV相较于验证集方法：后者由于均分数据集，使得训练模型时没有充分利用样本(n偏小)，模型准确率不高(欠拟合)，会高估MSE或错误率，同时验证集方法由于数据划分的随机性评价结果不够稳定。K-fold虽然也有随机性，但稳定性较好
+
+K-fold相较于LOOCV：后者评价结果稳定，但计算量过大，需要拟合模型n次，K-fold只需要拟合K次
+
+### 4.
+
+可以用自助法  
+在R中先编写用X计算Y的函数，函数中涉及随机采样(sample)，然后用class::boot函数做分析，程序会多次从数据集中重复抽样生成自助样本，用自助样本得到Y值，mean(Y)和sd(Y)即为Y的评价结果和标准差
+
+
+## 应用
+
+### 5.
+
+a.b.
+```{r}
+set.seed(1412)
+n <- nrow(Default)
+train <- sample(1:n, ceiling(n/2), replace = FALSE)
+train_set <- Default[train,]
+test_set <- Default[-train,]
+log_fit <- glm(default ~ income+balance, data = train_set, family = binomial)
+test_probs <- predict(log_fit, test_set, type = "response")
+contrasts(Default$default)
+test_pred <- rep("No", nrow(test_set))
+test_pred[test_probs > 0.5] <- "Yes"
+#table(test_pred, test_set$default)
+mean(test_pred != test_set$default)
+```
+c.
+```{r}
+err_rate <- rep(0, 3)
+for (i in 1:3) {
+  n <- nrow(Default)
+  train <- sample(1:n, ceiling(n/2), replace = FALSE)
+  train_set <- Default[train,]
+  test_set <- Default[-train,]
+  log_fit <- glm(default ~ income+balance, data = train_set, family = binomial)
+  test_probs <- predict(log_fit, test_set, type = "response")
+  test_pred <- rep("No", nrow(test_set))
+  test_pred[test_probs > 0.5] <- "Yes"
+  #table(test_pred, test_set$default)
+  err_rate[i] <- mean(test_pred != test_set$default)
+}
+err_rate
+```
+d.  
+哑变量student的加入对减小错误率无影响
+```{r}
+set.seed(1412)
+n <- nrow(Default)
+train <- sample(1:n, ceiling(n/2), replace = FALSE)
+train_set <- Default[train,]
+test_set <- Default[-train,]
+log_fit <- glm(default ~ income+balance+student, data = train_set, family = binomial)
+test_probs <- predict(log_fit, test_set, type = "response")
+contrasts(Default$default)
+contrasts(Default$student)
+test_pred <- rep("No", nrow(test_set))
+test_pred[test_probs > 0.5] <- "Yes"
+#table(test_pred, test_set$default)
+mean(test_pred != test_set$default)
+```
+
+### 6.
+
+a.
+```{r}
+log_fit <- glm(default ~ income+balance, data = Default, family = binomial)
+summary(log_fit)
+```
+
+b.
+```{r}
+set.seed(1412)
+boot_fn <- function(data, index) {
+  beta_ <- c(0, 0)
+  log_fit <- glm(default ~ income+balance, data = Default, family = binomial, subset = index)
+  beta_[1] <- coef(log_fit)[2]
+  beta_[2] <- coef(log_fit)[3]
+  return(beta_)
+}
+n <- nrow(Default)
+idx <- sample(1:n, n, replace = TRUE)
+boot_fn(Default, idx)
+```
+
+c.
+```{r}
+set.seed(1412)
+boot(data = Default, statistic = boot_fn, R = 100)
+```
+
+d.  
+可以看到，bootstrap和glm()得到的标准误差估计是十分接近的，前者的结果会略小一些
+
+### 7.
+
+a.
+```{r}
+fm1 <- glm(Direction ~ Lag1+Lag2, data = Weekly, family = binomial)
+```
+
+b.
+```{r}
+fm2 <- glm(Direction ~ Lag1+Lag2, data = Weekly, family = binomial, subset = -1)
+```
+
+c.
+预测错误
+```{r}
+n1_probs <- predict(fm2, Weekly[1,], type = "response")
+if(n1_probs > 0.5){
+  n1_pred <- "Up"
+}else{
+  n1_pred <- "Down"
+}
+n1_pred == Weekly[1,]$Direction
+```
+
+d.e.
+LOOCV错误率为44.99%
+```{r}
+n = nrow(Weekly)
+preds <- rep("Down", n)
+for (i in 1:n) {
+  fm <- glm(Direction ~ Lag1+Lag2, data = Weekly, family = binomial, subset = -i)
+  i_probs <- predict(fm, Weekly[i,], type = "response")
+  if (i_probs > 0.5){
+    preds[i] <- "Up"
+  }
+}
+# e
+mean(preds != Weekly$Direction)
+```
+
+### 8.
+
+a.b.  
+$Y = X - 2*X^2 + \epsilon$  
+n = 100, p = 2
+```{r}
+set.seed(1)
+#y <- rnorm(100)
+x <- rnorm(100)
+y <- x - 2*x^2 + rnorm(100)
+plot(x, y)
+```
+
+c. 二次项的模型MSE最低，符合预期，因为真实模型就是二次项
+```{r}
+set.seed(14)
+df <- data.frame(
+  x,
+  y
+)
+loocv <- rep(0, 4)
+for (i in 1:4) {
+  fm <- glm(y ~ poly(x, i), data = df)
+  loocv[i] <- cv.glm(df, fm)$delta[1]
+}
+loocv
+```
+
+d. 结果和c一样
+```{r}
+set.seed(1412)
+df <- data.frame(
+  x,
+  y
+)
+loocv <- rep(0, 4)
+for (i in 1:4) {
+  fm <- glm(y ~ poly(x, i), data = df)
+  loocv[i] <- cv.glm(df, fm)$delta[1]
+}
+loocv
+```
+
+e.  
+可以看出在用4次项拟合时，只有1次和2次系数的p值是显著的，说明应该选择二次项模型，与CV结论一致
+```{r}
+fm <- glm(y ~ poly(x, 4), data = df)
+summary(fm)
+```
+
+### 9.
+
+a.b.
+$\hat{\mu}$
+```{r}
+mu <- mean(Boston$medv)
+mu
+```
+$SE(\hat{\mu})$
+```{r}
+n <- nrow(Boston)
+se_medv <- sd(Boston$medv)/sqrt(n)
+se_medv
+```
+
+c.  
+自助法估计$SE(\hat{\mu})$
+```{r}
+boot_mean <- function(x, index){
+  return(mean(x[index]))
+}
+boot(Boston$medv, statistic = boot_mean, R = 1000)
+```
+
+d.  
+自助估计的95%区间
+```{r}
+lwr <- mu - abs(qt(0.05/2, n-1))*se_medv
+upr <- mu + abs(qt(0.05/2, n-1))*se_medv
+lwr2 <- mu - 2*se_medv
+upr2 <- mu + 2*se_medv
+lwr
+upr
+```
+t.test()区间
+```{r}
+t.test(Boston$medv)
+```
+
+e.f.  
+自助法估计中位数及标准误
+```{r}
+med <- median(Boston$medv)
+boot_med <- function(x, index){
+  return(median(x[index]))
+}
+med
+boot(Boston$medv, statistic = boot_med, R = 1000)
+```
+
+g.h.  
+自助法估计10%分位数及标准误
+```{r}
+q10 <- quantile(Boston$medv, probs = 0.1)
+boot_q10 <- function(x, index){
+  return(quantile(x[index], probs = 0.1))
+}
+q10
+boot(data = Boston$medv, statistic = boot_q10, R = 1000)
+```

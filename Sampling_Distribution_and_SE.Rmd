@@ -1,0 +1,68 @@
+---
+title: "Sampling Distribution and SE"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 总体(population)
+
+```{r}
+set.seed(123)
+pop <- rnorm(mean = 100, sd = 5, n = 10000)
+pop_mean <- mean(pop)
+pop_sd <- sd(pop)
+```
+
+## 根据样本来估计总体均值和均值的标准误
+
+均值的标准误可以依据公式来计算(对于分位数无公式)，由于总体已知所以可以得到标准误的准确值
+```{r}
+sam_num <- 100
+se <- pop_sd/sqrt(sam_num)
+se
+```
+
+获得一个样本，根据样本来估计总体均值，估计标准误
+```{r}
+sam <- sample(pop, sam_num)
+pop_mean_hat <- mean(sam)
+se_hat <- sd(sam)/sqrt(sam_num)
+pop_mean_hat
+se_hat
+```
+
+## 根据均值的抽样分布来估计总体均值和标准误
+
+均值是关于样本(不含未知参数)的函数，其分布称为抽样分布。均值的抽样分布~$N(\mu, {se}^2)$
+```{r}
+repeat_num <- 1000
+sam_mean_vec <- rep(0, repeat_num)
+for (i in 1:repeat_num) {
+  sam <- sample(pop, sam_num)
+  sam_mean_vec[i] <- mean(sam)
+}
+pop_mean_hat2 <- mean(sam_mean_vec)
+se_hat2 <- sd(sam_mean_vec)
+pop_mean_hat2
+se_hat2
+
+hist(sam_mean_vec, freq = FALSE, ylim = c(0, 1), main = "Sampling Distribution of mean", xlab = "sample mean", ylab = "probability density")
+lines(density(sam_mean_vec), col = "blue")
+curve(dnorm(x, mean = pop_mean_hat2, sd = se_hat2), col = "red", add = TRUE)
+legend("topleft",legend = c("true density", "theoreticl distribution"), lwd=1, col=c("blue", "red"))
+```
+
+## 根据自助法来估计总体均值和标准误
+
+所以自助法的实质是：根据现有的样本，将它当作整体，通过多次重复抽样，构造出不同的样本，然后根据样本来计算获得统计量和标准误
+
+```{r}
+library(boot)
+boot_mean <- function(vec, idx){
+  return(mean(vec[idx]))
+}
+boot(data = sam, statistic = boot_mean, R = 1000)
+```

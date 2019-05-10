@@ -1,0 +1,94 @@
+---
+title: "ISLR.Chap3.Exercise"
+output:
+  html_document: default
+---
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## 概念
+### 1.
+p值对应的零假设都是$\beta_i = 0$，p值小说明可以拒绝零假设，表明因变量与相应的自变量有线性关系  
+
+### 2.
+KNN分类和回归都是先找到与待预测点最近的K个点，分类是选择K个点中比例最大的类型作为输入，而回归是$\hat{y} = \frac{1}{K}\sum\limits_{x_i \in N_0}y_i$  
+
+### 3.
+a.  
+选3，当IQ和GPA一定时，GPA足够高，男性收入大于女性
+b.
+```{r}
+income <- function(IQ, GPA, gender=1){
+  beta0 <- 50
+  beta1 <- 20
+  beta2 <- 0.07
+  beta3 <- 35
+  beta4 <- 0.01
+  beta5 <- -10
+  beta0 + beta1*GPA + beta2*IQ + beta4*IQ*GPA + beta3*gender + beta5*gender*GPA
+}
+income(110, 4)
+```
+c.
+错误，判断二者是否有交互关系不是以交互项的系数大小，而要看p值
+
+### 4.
+```{r, results="hide"}
+library(rmarkdown)
+library(ggplot2)
+```
+模拟数据，划分训练集和测试集
+```{r split_data}
+# data
+x <- runif(200, 1, 10)
+epsilon <- rnorm(200, mean = 0, sd = 2)
+y <- 5 + 3*x + epsilon
+
+sub <- sample(1:length(x), 100)
+x_train <- x[sub]
+y_train <- y[sub]
+x_test <- x[-sub]
+y_test <- y[-sub]
+
+```
+拟合训练集
+```{r lm.fit.train}
+fm <- lm(y_train ~ x_train)
+fm2 <- lm(y_train ~ poly(x_train, 3))
+# show.legend is important
+ggplot() +
+  geom_point(aes(x_train, y_train), alpha = 0.5) +
+  geom_abline(aes(slope = 3, intercept = 5, color = "true.model"), show.legend = FALSE) +
+  geom_smooth(aes(x_train, y_train, color = "lm"), method = "lm",  se = FALSE) +
+  geom_smooth(aes(x_train, y_train, color = "polynomial"), method = "lm", formula = y~poly(x,3), se = FALSE) +
+  scale_color_manual(
+    name = "modle type",
+    values = c("true.model" = "black", "lm"="red", "polynomial"="blue")
+  )
+sum((residuals(fm))^2) > sum((residuals(fm2))^2)
+```
+用测试集做预测
+```{r lm.fit.test}
+RSS <- function(y_true, y_pre){
+  sum((y_true - y_pre)^2)
+}
+# note the name of df, must same with fm'x_train
+y_fm_pre <-  predict(fm, data.frame(x_train=x_test))
+y_fm2_pre <-  predict(fm2, data.frame(x_train=x_test))
+ggplot() +
+  geom_point(aes(x_test, y_test), alpha = 0.5) +
+  geom_abline(aes(slope = 3, intercept = 5, color = "true.model"), show.legend = FALSE) +
+  geom_line(aes(x_test, y_fm_pre, color = "lm")) +
+  geom_line(aes(x_test, y_fm2_pre, color = "polynomial")) +
+  scale_color_manual(
+    name = "modle type",
+    values = c("true.model" = "black", "lm"="red", "polynomial"="blue")
+  )
+
+RSS(y_test, y_fm_pre) > RSS(y_test, y_fm2_pre)
+```
+### 结论
+无论真实模型如何，flexibility高的模型在训练集上的表现总是更好(噪声也拟合进去了)
+本题中，真实模型是线性模型，所以在测试集上线性模型比多项式模型表现更好
+如果真实模型未知，则在测试集上的表现未知

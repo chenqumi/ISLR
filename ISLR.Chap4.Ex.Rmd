@@ -1,0 +1,198 @@
+---
+title: "ISLR.Chap4.Exercise"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### 概念
+#### 4
+a. 0.1
+b. 0.1 * 0.1
+c. 0.1 ** 100
+d. 
+e. 0.1, 0.1**(1/2), 0.1**(1/100)
+
+#### 5
+a. 如果贝叶斯决策边界是线性的，在训练集上QDA好于LDA，在测试集上LDA好于QDA，因为光滑度高的模型总是能得到更好的训练集表现，但由于真实模型是线性的，所以在测试集上LDA好
+b. 如果贝叶斯决策边界是非线性的，在训练集和测试集上都是QDA好
+c. 当样本量n增大时，QDA的预测率会变好，偏差的减小可以抵消方差的增大。见书p104
+d. 错
+
+#### 6
+a.
+```{r}
+p_a <- exp(-6 + 0.05*40 + 1*3.5)
+```
+b.
+$e^{-6+3.5+0.05t} = \frac{0.5}{1-0.5}$
+```{r}
+time_ <- 50
+```
+
+#### 7
+```{r}
+prob_density <- function(x, mu, sig){
+  1/(sqrt(2*pi)*sig) * exp(-1/(2*sig^2)*(x-mu)^2)
+}
+p1 <- 0.8 * prob_density(4, 10, 6)
+p2 <- 0.2 * prob_density(4, 0, 6)
+p_post <- p1/(p1+p2)
+```
+
+#### 9
+$\frac{x}{1-x} = 0.37$
+```{r}
+x <- 0.37/1.37
+0.16/(1-0.16)
+```
+
+
+### 应用
+#### 10
+```{r message=FALSE, warning=FALSE}
+library(ISLR)
+library(MASS)
+library(class)
+summary(Weekly)
+weekly_ <- subset(Weekly, select = -Direction)
+```
+a.散点图和相关系数显示Volume和Year有关联
+```{r}
+pairs(weekly_)
+cor(weekly_)
+```
+b. Lag2是显著的
+```{r}
+log_fit <- glm(Direction ~ Lag1+Lag2+Lag3+Lag4+Lag5+Volume, data = Weekly, family = binomial)
+summary(log_fit)
+contrasts(Weekly$Direction)
+```
+c.
+```{r}
+log_probs <- predict(log_fit, type = "response")
+log_pred <- rep("Down", nrow(Weekly))
+log_pred[log_probs > 0.5] <- "Up"
+table(log_pred, Weekly$Direction)
+correct_rate <- (54+557)/(54+557+48+430)
+mean(log_pred == Weekly$Direction)
+true_up <- 557/(557+430)
+```
+d.
+```{r}
+train <- subset(Weekly, Year <= 2008)
+test <- subset(Weekly, Year > 2008)
+fit2 <- glm(Direction ~ Lag2, data = train, family = binomial)
+test_probs <- predict(fit2, test, type = "response")
+test_pred <- rep("Down", nrow(test))
+test_pred[test_probs > 0.5] <- "Up"
+table(test_pred, test$Direction)
+#test_cor_rate <- (9+56)/(9+56+5+34)
+mean(test_pred == test$Direction)
+```
+e.
+```{r}
+lda_fit <- lda(Direction ~ Lag2, data = train)
+lda_test_pred <- predict(lda_fit, test)
+lda_test_pred_class <- lda_test_pred$class
+table(lda_test_pred_class, test$Direction)
+#lda_cor_rate <- (9+56)/(9+56+5+34)
+mean(lda_test_pred_class == test$Direction)
+```
+f.
+```{r}
+qda_fit <- qda(Direction ~ Lag2, data = train)
+qda_test_class <- predict(qda_fit, test)$class
+mean(qda_test_class == test$Direction)
+```
+g.
+```{r}
+train_X <- train$Lag2
+train_X <- as.matrix(train$Lag2, row = length(train), col = 1)
+train_Y <- train$Direction
+test_X <- as.matrix(test$Lag2, row = length(test), col = 1)
+knn_pred <- knn(train = train_X, test = test_X, cl = train_Y, k = 1)
+table(knn_pred, test$Direction)
+mean(knn_pred == test$Direction)
+```
+h.  
+logit = LDA > QDA > KNN(k=1)
+
+#### 11
+```{r message=FALSE, warning=FALSE}
+library(class)
+library(ISLR)
+library(MASS)
+library(ggplot2)
+library(reshape2)
+```
+a.
+```{r}
+View(Auto)
+mpg01 <- rep(0, nrow(Auto))
+mpg01[Auto$mpg > median(Auto$mpg)] <- 1
+Auto2 <- data.frame(
+  Auto,
+  mpg01=as.factor(mpg01)
+)
+```
+b. 做多个箱线图需要先合并(melt)多个变量，再利用facet_wrap()  
+```{r}
+names(Auto2)
+pairs(subset(Auto2, select = -name))
+relative_var <- c("cylinders", "displacement", "horsepower", "weight", "acceleration", "year")
+Auto2_m <- melt(
+  Auto2, id.vars = "mpg01", 
+  measure.vars = relative_var
+)
+ggplot(Auto2_m) + 
+  geom_boxplot(aes(x = mpg01, y = value, fill = mpg01)) +
+  facet_wrap(~ variable, scales = "free_y")
+```
+
+c.
+```{r}
+n <- nrow(Auto2)
+set.seed(123)
+sub <- sample(1:n, ceiling(0.7*n))
+train <- Auto2[sub,]
+test <- Auto2[-sub,]
+```
+d.
+```{r}
+lda_fit <- lda(mpg01 ~ cylinders+displacement+horsepower+weight+year, data = train)
+lda_test_pred_class <- predict(lda_fit, test)$class
+table(lda_test_pred_class, test$mpg01)
+mean(lda_test_pred_class == test$mpg01)
+```
+e.
+```{r}
+qda_fit <- qda(mpg01 ~ cylinders+displacement+horsepower+weight+year, data = train)
+qda_test_pred_class <- predict(qda_fit, test)$class
+table(qda_test_pred_class, test$mpg01)
+mean(qda_test_pred_class == test$mpg01)
+```
+f.
+```{r}
+logit_fit <- glm(mpg01 ~ cylinders+displacement+horsepower+weight+year, data = train, family = binomial)
+logit_test_probs <- predict(logit_fit, test)
+logit_test_pred <- rep(0, nrow(test))
+logit_test_pred[logit_test_probs > 0.5] <- 1
+table(logit_test_pred, test$mpg01)
+mean(logit_test_pred == test$mpg01)
+```
+g.
+```{r}
+train_X <- train[relative_var]
+train_Y <- train$mpg01
+test_X <- test[relative_var]
+for (k in 1:10) {
+  set.seed(123)
+  knn_pred <- knn(train = train_X, test = test_X, cl = train_Y, k = k)
+  cor_rate <- mean(knn_pred == test$mpg01)
+  print(cor_rate)
+}
+```
+
